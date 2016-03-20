@@ -1,9 +1,11 @@
 module TertiaryTree(
-  tertiarize, treeInsert
-  ) where
+  tertiarize, treeInsert, singleton,
+  fmap, F.foldl, F.foldr) where
 
 import Control.Applicative
 import Data.Tree
+import Data.Monoid
+import Data.Foldable as F
 
 tertiarize :: Tree (Maybe a) -> Tree (Maybe a)
 tertiarize (Node r ts0) = (Node r (newForest ts0))
@@ -25,8 +27,10 @@ treeInsert x (Node r ts)
 
 
 nums = Just <$> [1..20]
-numTree = foldr treeInsert (singleton (Just 4)) nums
+numTree = F.foldr treeInsert (singleton (Just 4)) nums
+
 main = do
   putStrLn $ drawTree (fmap show numTree)
 test = do
   putStrLn . drawTree . (fmap show) . tertiarize $ numTree
+
