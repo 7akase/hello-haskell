@@ -29,12 +29,11 @@ carry t = foldrTree f [] t
 tertiarize :: Tree (Inst a) -> Tree (Inst a)
 tertiarize (Node r ts0) = (Node r (newForest ts0))
   where
-    newForest []            = [] -- Leaf
-    newForest [t]           = [tertiarize t]
-    newForest [t1,t2]       = fmap tertiarize [t1,t2]
-    newForest [t1,t2,t3]    = fmap tertiarize [t1,t2,t3]
-    newForest (t1:t2:t3:ts) = let newAdder = Node (Inst "sum_" Nothing [])  [t1,t2,t3]
-                              in newAdder:(newForest ts)
+    newForest []                  = []
+    newForest ts | length ts <= 3 = fmap tertiarize ts
+                 | otherwise      = let x = Node (Inst "sum_" Nothing [])
+                                                 (take 3 ts)
+                                    in newForest $ x:(drop 3 ts)
 
 wallace :: [Tree (Inst a)] -> [Tree (Inst a)]
 wallace (x:[]) = [tertiarize x]
@@ -57,4 +56,11 @@ sample = putStrLn . unlines $ showTree
          <$> fmap ((cell `mappend` (show . name)) . snd) <$> numberTree <$> xx
          where
            xx = wallace input 
-           input = replicate 3 . convert $ foldr insertTree (singleton 10) [1..4] 
+           input = replicate 2 . convert $ foldr insertTree (singleton 10) [1..10] 
+
+sample2 :: IO()
+sample2 = putStrLn . unlines $ showTree
+          <$> fmap ((cell `mappend` (show . name)) . snd) <$> numberTree <$> xx
+          where
+            xx = wallace input 
+            input = replicate 2 . convert $ foldr insertTree (singleton 100) [1..10] 
