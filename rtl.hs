@@ -4,79 +4,66 @@ import Data.Maybe
 import Data.Tree
 import TertiaryTree
 
-data Inst a = Inst {cell :: String, name :: Maybe a, from :: [Maybe a]}
+data Inst = Inst {cell :: String, inst :: Maybe String, input :: [Maybe String]}
  deriving (Show)
 
-toInst :: Tree a -> Tree (Inst a)
-toInst (Node x ts) = Node (Inst "pin_" (Just x) [])
-                          (map (fmapTree toInst) ts)
- 
--- usage : putStrLn . showTree . convert $ tertiary numTree
-convert :: Tree a -> Tree (Inst a)
-convert = fmapTree toInst 
+-- |
+-- >>> toInst "a"
+-- Inst {cell = "", inst = Just "\"a\"", input = []}
+toInst :: (Show a) => a -> Inst
+toInst x = Inst "" (Just (show x)) []
 
--- auxial functions for RTL generator
-
-isAdder :: Tree a -> Bool
+isAdder :: Tree Inst -> Bool
 isAdder (Node _ ts) | length ts == 3 = True
                     | otherwise      = False
 
-carry :: Tree (Inst a) -> [Tree (Inst a)]
-carry t = foldrTree f [] t
-  where f t' = let newTree = Node (rootLabel t'){cell = "co_"} [] 
+tertiary :: Tree Inst       -> Tree Inst
+tertiary (Node r ts) = Node r (newForest ts)
+  where
+    newForest [] = []
+    newForest ts | length ts <= 3 = fmap tertiary ts
+                 | otherwise      = let x = Node (Inst "sum_FA" Nothing [])
+                                                 (take 3 ts)
+                                    in newForest $ x:drop 3 ts
+
+number   :: Int -> Tree Inst       -> Tree (Int,Inst)
+number = numberTree
+
+name     :: (Int, Inst) -> Inst
+name (n, Inst c  Nothing  ins) = Inst c      (Just (show n)) ins
+name (_, Inst "" (Just x) ins) = Inst "pin_" (Just x)        ins
+name (n, Inst c  (Just x) ins) = Inst c      (Just x)        ins
+
+step     :: Int -> Tree Inst       -> Tree Inst
+step n t = fmap name . number n $ tertiary t
+
+-- # 
+carry    :: Tree Inst       -> [Tree Inst]
+carry = foldrTree f []
+  where f t' = let newTree = Node (rootLabel t'){cell = "co_FA"} [] 
                in if isAdder t' then (newTree:) else id
 
-tertiary :: Tree (Inst a) -> Tree (Inst a)
-tertiary (Node r ts0) = (Node r (newForest ts0))
+appendSubForest :: Tree Inst -> [Tree Inst] -> Tree Inst
+appendSubForest t ts = Node (rootLabel t) (subForest t ++ ts)
+
+wallace :: Int -> [Tree Inst] -> [Tree Inst]
+wallace 0 ts = [step 0 (head ts)]
+wallace n ts = step (n * 100) (appendSubForest (ts !! n) (carry (head lsbs))) : lsbs
   where
-    newForest []                  = []
-    newForest ts | length ts <= 3 = fmap tertiary ts
-                 | otherwise      = let x = Node (Inst "sum_" Nothing [])
-                                                 (take 3 ts)
-                                    in newForest $ x:(drop 3 ts)
-
-binary_1 :: Tree (Inst a) -> Tree (Inst a)
-binary_1 = undefined
-
-wallace :: [Tree (Inst a)] -> [Tree (Inst a)]
-wallace (x:[]) = [tertiary x]
-wallace (x:xs) = [tertiary (Node (rootLabel x) (subForest x ++ c))]
-                 ++ lsbs
-  where c    = carry (head lsbs)
-        lsbs = wallace xs
-
-nameTree :: (Show a, Show b) => Tree (a, Inst b) -> Tree (Inst String)
-nameTree t = fmap nameNode t
-
-nameNode :: (Show a, Show b) => (a, Inst b) -> Inst String
-nameNode (a, i@(Inst c Nothing  from)) = Inst c (Just ("N_" ++ show a)) [] 
-nameNode (a, i@(Inst c (Just n) from)) = Inst c (Just (show n)) []
-
+    lsbs = wallace (n-1) ts
+--
 -- *****************************************************************************
 --  configure
 -- *****************************************************************************
 
+toString :: Inst -> String
+toString i = head . maybeToList $ Just (cell i) `mappend` inst i
+
 nodePrefix :: String
 nodePrefix = "N"
 
--- *****************************************************************************
 
-sample3 = putStrLn . unlines $ showTree <$>
-          fmap ((Just . cell) `mappend` name) <$> nameTree <$> numberTree <$> xx
-            where
-              xx = wallace input
-              input = replicate 2 . convert $ foldr insertTree (singleton 100) [1..10] 
-
-sample :: IO()
-sample = putStrLn . unlines $ showTree
-         <$> fmap ((cell `mappend` (show . name)) . snd) <$> numberTree <$> xx
-         where
-           xx = wallace input 
-           input = replicate 2 . convert $ foldr insertTree (singleton 10) [1..10] 
-
-sample2 :: IO()
-sample2 = putStrLn . unlines $ showTree
-          <$> fmap ((cell `mappend` (show . name)) . snd) <$> numberTree <$> xx
-          where
-            xx = wallace input 
-            input = replicate 2 . convert $ foldr insertTree (singleton 100) [1..10] 
+main :: IO ()
+main = do
+  putStrLn . unlines . map (drawTree . fmap toString) . wallace 2 . replicate 3 . fmap toInst $ foldr insertTree (singleton 100) [1..10]
+  putStrLn "done"

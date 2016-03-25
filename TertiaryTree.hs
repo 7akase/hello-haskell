@@ -37,8 +37,8 @@ zipTree (Node r1 xs1) (Node r2 xs2) = Node (r1,r2) (zipTree <$> xs1 <*> xs2)
 showTree :: (Show a) => Tree a -> String
 showTree = drawTree . (fmap show)
 
-numberTree :: Tree a -> Tree (Integer, a)
-numberTree = snd . mapAccumL (\acc x -> (acc + 1, (acc + 1, x))) 0
+numberTree :: Int -> Tree a -> Tree (Int, a)
+numberTree ini t = snd $ mapAccumL (\acc x -> (acc + 1, (acc + 1, x))) ini t 
 
 nums = Just <$> [1..20]
 numTree = F.foldr insertTree (singleton (Just 4)) nums
