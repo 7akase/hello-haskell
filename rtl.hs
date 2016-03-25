@@ -2,45 +2,57 @@ import Control.Applicative
 import Data.Monoid
 import Data.Maybe
 import Data.Tree
+import Data.Traversable
 import TertiaryTree
 
-data Inst = Inst {cell :: String, inst :: Maybe String, input :: [Maybe String]}
- deriving (Show)
+type Name = Maybe String
+data Inst = Inst {cell :: Name, inst :: Name}
+
+instance Show Inst where
+  show = head . maybeToList . (mappend cell inst)
+
+name_to_str :: Name -> String
+name_to_str Nothing  = ""
+name_to_str (Just x) = x
+
 
 -- |
--- >>> toInst "a"
--- Inst {cell = "", inst = Just "\"a\"", input = []}
-toInst :: (Show a) => a -> Inst
-toInst x = Inst "" (Just (show x)) []
+-- >>> tnes $ fmap (foldrTree (mappend . to_netline) []) toInst "a"
+-- Inst {cell = Nothing, inst = Just "\"a\"", input = []}
+to_inst :: (Show a) => a -> Inst
+to_inst a = Inst Nothing (Just (show a)) 
 
 isAdder :: Tree Inst -> Bool
 isAdder (Node _ ts) | length ts == 3 = True
                     | otherwise      = False
 
-tertiary :: Tree Inst       -> Tree Inst
+tertiary :: Tree Inst -> Tree Inst
 tertiary (Node r ts) = Node r (newForest ts)
   where
     newForest [] = []
     newForest ts | length ts <= 3 = fmap tertiary ts
-                 | otherwise      = let x = Node (Inst "sum_FA" Nothing [])
+                 | otherwise      = let x = Node (Inst (Just "sum_FA") Nothing)
                                                  (take 3 ts)
                                     in newForest $ x:drop 3 ts
 
-number   :: Int -> Tree Inst       -> Tree (Int,Inst)
+number :: Int -> Tree Inst       -> Tree (Int,Inst)
 number = numberTree
 
-name     :: (Int, Inst) -> Inst
-name (n, Inst c  Nothing  ins) = Inst c      (Just (show n)) ins
-name (_, Inst "" (Just x) ins) = Inst "pin_" (Just x)        ins
-name (n, Inst c  (Just x) ins) = Inst c      (Just x)        ins
+top_cell :: Tree Inst -> Tree Inst
+top_cell (Node (Inst cell name) ts) = Node (Inst (Just "sum_FA") Nothing) ts
 
-step     :: Int -> Tree Inst       -> Tree Inst
+name :: (Int, Inst) -> Inst
+name (n, Inst c       Nothing) = Inst c             (Just (show n))
+name (_, Inst Nothing i      ) = Inst (Just "pin_") i
+name (n, Inst c       i      ) = Inst c             i
+
+step :: Int -> Tree Inst       -> Tree Inst
 step n t = fmap name . number n $ tertiary t
 
 -- # 
-carry    :: Tree Inst       -> [Tree Inst]
+carry :: Tree Inst -> [Tree Inst]
 carry = foldrTree f []
-  where f t' = let newTree = Node (rootLabel t'){cell = "co_FA"} [] 
+  where f t' = let newTree = Node (rootLabel t'){cell = Just "co_FA"} [] 
                in if isAdder t' then (newTree:) else id
 
 appendSubForest :: Tree Inst -> [Tree Inst] -> Tree Inst
@@ -51,19 +63,23 @@ wallace 0 ts = [step 0 (head ts)]
 wallace n ts = step (n * 100) (appendSubForest (ts !! n) (carry (head lsbs))) : lsbs
   where
     lsbs = wallace (n-1) ts
---
+
 -- *****************************************************************************
 --  configure
 -- *****************************************************************************
+--------------------------------------------------------------------------  
+to_netline :: Tree Inst -> String
+to_netline (Node r ts) | cell r == Just "pin_" = ""
+                       | cell r == Just "co_FA"  = ""
+                       | otherwise = unwords (show r : xs)
+                         where xs = ("is from" : map (show . rootLabel) ts) ++ ["\n"]
 
-toString :: Inst -> String
-toString i = head . maybeToList $ Just (cell i) `mappend` inst i
-
-nodePrefix :: String
-nodePrefix = "N"
-
+--------------------------------------------------------------------------  
+t = wallace 2 . replicate 3 . top_cell . fmap to_inst $ foldr insertTree (singleton 100) [1..10]
 
 main :: IO ()
 main = do
-  putStrLn . unlines . map (drawTree . fmap toString) . wallace 2 . replicate 3 . fmap toInst $ foldr insertTree (singleton 100) [1..10]
+  result <- return . wallace 2 . replicate 3 . fmap to_inst $ foldr insertTree (singleton 100) [1..10]
+  putStrLn . unlines $ fmap (foldrTree (mappend . to_netline) []) t
   putStrLn "done"
+
