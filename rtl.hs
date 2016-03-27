@@ -22,6 +22,15 @@ name_to_str (Just x) = x
 to_inst :: (Show a) => a -> Inst
 to_inst a = Inst Nothing (Just (show a)) 
 
+-- |
+-- >>> genCarryPropagate 3
+-- [["00"],["01","10"],["02","11","20"],["12","21"],["22"]]
+genCarryPropagate :: Int -> [Inst]
+genCarryPropagate n = fmap to_inst $ map (genCP n) [0..(n * 2 - 1 - 1)]
+  where
+    genCP n i = map (\(a,b) -> show a ++ show b) [(x,y) | x <- [0..n-1], y <- [0..n-1] , x + y == i]
+
+
 isAdder :: Tree Inst -> Bool
 isAdder (Node _ ts) | length ts == 3 = True
                     | otherwise      = False
@@ -69,11 +78,12 @@ wallace n ts = step (n * 100) (appendSubForest (ts !! n) (carry (head lsbs))) : 
 -- *****************************************************************************
 --------------------------------------------------------------------------  
 to_netline :: Tree Inst -> String
-to_netline (Node r ts) | cell r == Just "pin_" = ""
-                       | cell r == Just "co_FA"  = ""
-                       | otherwise = unwords (show r : xs)
-                         where xs = ("is from" : map (show . rootLabel) ts) ++ ["\n"]
-
+to_netline (Node r ts) | cell r == Just "sum_FA" = unwords xs
+                       | otherwise               = ""
+  where xs = "FA_CELL_NAME" : co : so : map (show . rootLabel) ts ++ ["\n"]
+        i  = head . maybeToList $ inst r
+        co = "co_" ++ i
+        so = "sum_" ++ i
 --------------------------------------------------------------------------  
 t = wallace 2 . replicate 3 . top_cell . fmap to_inst $ foldr insertTree (singleton 100) [1..10]
 

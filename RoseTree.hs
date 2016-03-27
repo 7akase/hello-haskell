@@ -1,4 +1,4 @@
-module TertiaryTree(
+module RoseTree(
   insertTree, singleton,
   fmapTree, foldrTree, zipTree,
   showTree, numberTree) where
@@ -12,7 +12,6 @@ import Data.Traversable
 import qualified Data.Foldable as F
 
 {-#LANGUAGE DeriveTraversable #-}
-
 
 singleton :: a -> Tree a
 singleton x = Node x []
