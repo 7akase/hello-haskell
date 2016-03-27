@@ -44,6 +44,17 @@ isHA :: Tree Inst -> Bool
 isHA (Node _ ts) | length ts == 2 = True
                  | otherwise      = False
 
+name_to_str :: Name -> String
+name_to_str Nothing  = ""
+name_to_str (Just x) = x
+
+
+-- |
+-- >>> tnes $ fmap (foldrTree (mappend . to_netline) []) toInst "a"
+-- Inst {cell = Nothing, inst = Just "\"a\"", input = []}
+to_inst :: (Show a) => a -> Inst
+to_inst a = Inst Nothing (Just (show a)) 
+
 isAdder :: Tree Inst -> Bool
 isAdder x = isFA x || isHA x
 
